@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極簡 3D 桌球 4.3.0 (明亮直式版)</title>
+    <title>極簡 3D 桌球 4.4.0 (擴增操作版)</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            /* 將背景改為明亮色系，避免網頁載入瞬間閃黑 */
             background-color: #87CEEB; 
             touch-action: none;
             font-family: sans-serif;
@@ -21,19 +20,17 @@
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
-            padding: 40px 0; /* 增加手機端上下的安全距離 */
+            padding: 40px 0;
             box-sizing: border-box;
             z-index: 999;
         }
         .score-board {
-            /* 針對手機版面稍微縮小字體 */
             font-size: 42px; 
             font-weight: bold;
             display: flex;
             width: 100%;
-            max-width: 400px; /* 限制計分板最大寬度 */
+            max-width: 400px;
             justify-content: space-around;
-            /* 陰影改深，在亮色背景下才看得清楚 */
             text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         #score-p2 { color: #2244cc; }
@@ -67,11 +64,9 @@
 <script>
     // ==================== 基本設定 ====================
     const scene = new THREE.Scene();
-    // 畫面改為明亮的天空藍
     scene.background = new THREE.Color(0x87CEEB); 
     
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // 相機拉高拉遠，適應直立版面
     camera.position.set(0, 18, 26); 
     camera.lookAt(0, 0, 0);
 
@@ -79,7 +74,6 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // 燈光：整體調亮
     scene.add(new THREE.AmbientLight(0xffffff, 1.2)); 
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     dirLight.position.set(6, 20, 8);
@@ -88,7 +82,6 @@
     // ==================== 物件 ====================
     const table = new THREE.Mesh(
         new THREE.BoxGeometry(10, 0.5, 16),
-        // 球桌改為經典運動藍，並增加一點反光質感
         new THREE.MeshPhongMaterial({ color: 0x1e88e5, shininess: 30 }) 
     );
     scene.add(table);
@@ -119,11 +112,11 @@
         return group;
     }
 
-    const p1 = createRacket(0xee3333); // 稍微調亮紅色
+    const p1 = createRacket(0xee3333); 
     p1.position.set(0, 1.3, 7);
     scene.add(p1);
 
-    const p2 = createRacket(0x3333ee); // 稍微調亮藍色
+    const p2 = createRacket(0x3333ee); 
     p2.position.set(0, 1.3, -7);
     p2.rotation.y = Math.PI;
     scene.add(p2);
@@ -147,7 +140,7 @@
     }
 
     // ==================== 遊戲變數 ====================
-    let gameState = 'serve'; // 狀態：serve, play, wait, gameover
+    let gameState = 'serve'; 
     let server = 1;
     let scoreP1 = 0, scoreP2 = 0;
     let turnOwner = 1;
@@ -155,7 +148,7 @@
 
     const BASE_SPEED = 0.085;
     const GRAVITY = 0.0055;
-    const WIN_SCORE = 21; // 新增：獲勝分數
+    const WIN_SCORE = 21; 
 
     let ballSpeedX = 0, ballSpeedY = 0, ballSpeedZ = 0;
     let p1LastX = 0, p1VelocityX = 0;
@@ -201,9 +194,8 @@
 
         updateScore();
 
-        // 檢查是否有人獲勝
         if (winner !== 0 && checkWinCondition()) {
-            return; // 若遊戲結束，不再進行後續發球邏輯
+            return; 
         }
 
         const total = scoreP1 + scoreP2;
@@ -223,7 +215,7 @@
         }
 
         setTimeout(() => {
-            if (gameState === 'gameover') return; // 如果這段時間內遊戲已結束則阻斷
+            if (gameState === 'gameover') return; 
 
             gameState = 'serve';
             if (server === 1) {
@@ -276,7 +268,8 @@
             return;
         }
 
-        if (ball.position.distanceTo(p1.position) < 1.7 && ballSpeedZ > 0) {
+        // 擊球判定 (玩家)：將半徑放寬到 2.5，大幅提升命中率
+        if (ball.position.distanceTo(p1.position) < 2.5 && ballSpeedZ > 0) {
             const power = 1 + Math.abs(p1VelocityX) * 0.9;
             ballSpeedZ = -BASE_SPEED * 1.85 * power;
             ballSpeedY = 0.14 + Math.random() * 0.06;
@@ -286,7 +279,8 @@
             hasBounced = false; 
         }
 
-        if (ball.position.distanceTo(p2.position) < 1.7 && ballSpeedZ < 0) {
+        // 擊球判定 (電腦)：微調至 2.0，使其能接住角度較大的球
+        if (ball.position.distanceTo(p2.position) < 2.0 && ballSpeedZ < 0) {
             ballSpeedZ = BASE_SPEED * 1.75;
             ballSpeedY = 0.13 + Math.random() * 0.05;
             ballSpeedX = (ball.position.x - p2.position.x) * 0.06;
@@ -354,18 +348,18 @@
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-        // 提高 X 軸靈敏度，方便直立窄螢幕遊玩
         let nx = (clientX / window.innerWidth) * 2 - 1;
         p1.position.x = nx * 10; 
         p1.position.x = Math.max(Math.min(p1.position.x, 8), -8);
 
+        // 放寬 Z 軸映射比例，讓手勢滑動能涵蓋更深與更淺的空間
         let ny = clientY / window.innerHeight;
-        p1.position.z = 2 + ny * 8;
-        p1.position.z = Math.max(Math.min(p1.position.z, 7.5), 1.8);
+        p1.position.z = 0 + ny * 11; 
+        // 限制範圍擴大：最近可到網前 0.5，最遠可退至桌後 10
+        p1.position.z = Math.max(Math.min(p1.position.z, 10), 0.5); 
     }
 
     function onPointerDown() {
-        // 如果在遊戲結束狀態點擊，則重新開始
         if (gameState === 'gameover') {
             scoreP1 = 0; 
             scoreP2 = 0;
