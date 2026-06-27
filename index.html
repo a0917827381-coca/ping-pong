@@ -454,7 +454,15 @@
         p1.position.x = Math.max(Math.min(p1.position.x, 8), -8);
 
         let ny = (e.touches ? e.touches[0].clientY : e.clientY) / window.innerHeight;
-        p1.position.z = (ny - 0.3) * 18; 
+
+        // 針對手機觸控與電腦滑鼠設定不同的靈敏度與操作熱區
+        if (e.touches) {
+            // 手機版：放大倍率 (30)，讓拇指在螢幕下半部微調就能涵蓋整個球桌深度
+            p1.position.z = (ny - 0.4) * 30; 
+        } else {
+            // 電腦版：維持你原本順手的手感 (18)
+            p1.position.z = (ny - 0.3) * 18; 
+        }
         p1.position.z = Math.max(Math.min(p1.position.z, 10), 0.5); 
     }
 
