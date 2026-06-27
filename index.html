@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極簡 3D 桌球 4.1</title>
+    <title>極簡 3D 桌球 4.1.6</title>
     <style>
         body {
             margin: 0;
@@ -22,7 +22,7 @@
             align-items: center;
             padding: 30px 0;
             box-sizing: border-box;
-            z-index: 999; /* 確保 UI 絕對在 3D 畫布最上層 */
+            z-index: 999;
         }
         .score-board {
             font-size: 50px;
@@ -32,9 +32,9 @@
             justify-content: space-around;
             text-shadow: 0 0 10px rgba(255,255,255,0.3);
         }
-        #score-p2 { color: #5555ff; } /* 電腦藍色 */
-        #score-p1 { color: #ff5555; } /* 玩家紅色 */
-        
+        #score-p2 { color: #5555ff; }
+        #score-p1 { color: #ff5555; }
+       
         #message {
             font-size: 28px;
             font-weight: bold;
@@ -45,6 +45,17 @@
             line-height: 1.5;
             display: none;
             border: 2px solid #fff;
+        }
+        #hit-feedback {
+            position: absolute;
+            top: 120px;
+            font-size: 32px;
+            font-weight: bold;
+            color: #00ff88;
+            text-shadow: 0 0 15px #00ff88;
+            opacity: 0;
+            transition: opacity 0.6s;
+            pointer-events: none;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -57,15 +68,14 @@
         </div>
         <div id="message"></div>
     </div>
+    <div id="hit-feedback">GOOD!</div>
 
     <script>
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
-
         const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 15, 20);
         camera.lookAt(0, 0, 0);
-
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
@@ -98,7 +108,6 @@
             head.rotation.x = Math.PI / 2;
             head.rotation.y = -Math.PI / 6;
             racket.add(head);
-
             const handle = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.15, 0.2, 1.5, 16),
                 new THREE.MeshPhongMaterial({ color: 0x8b4513 })
@@ -130,74 +139,80 @@
             const mat = new THREE.MeshBasicMaterial({ color: 0x00ff99, side: THREE.DoubleSide, transparent: true, opacity: 1 });
             const ring = new THREE.Mesh(geo, mat);
             ring.rotation.x = -Math.PI / 2;
-            ring.position.set(x, 0.26, z); 
+            ring.position.set(x, 0.26, z);
             scene.add(ring);
             effects.push({ mesh: ring, life: 1.0 });
         }
 
-        let gameState = 'serve'; 
-        let server = 1; 
+        let gameState = 'serve';
+        let server = 1;
         let scoreP1 = 0;
         let scoreP2 = 0;
-        let turnOwner = 0; 
-
+        let lastHitSide = 0;
+        let isFirstBounceAfterServe = true;
         const BASE_SPEED = 0.08;
         const GRAVITY = 0.005;
         let ballSpeedX = 0;
         let ballSpeedY = 0;
         let ballSpeedZ = 0;
-
         let p1LastX = p1.position.x;
         let p1VelocityX = 0;
         let aiServeTimer = null;
+        let hasTouchedNet = false;
+
+        const hitFeedback = document.getElementById('hit-feedback');
+
+        function showHitFeedback(text) {
+            hitFeedback.textContent = text;
+            hitFeedback.style.opacity = 1;
+            setTimeout(() => {
+                hitFeedback.style.opacity = 0;
+            }, 600);
+        }
 
         function updateScore() {
             document.getElementById('score-p1').innerText = scoreP1;
             document.getElementById('score-p2').innerText = scoreP2;
         }
 
-        // 加入原因參數，讓裁判報分更真實
         function resetPoint(winner, reason = "") {
-            gameState = 'wait'; // 先進入等待狀態展示分數
+            gameState = 'wait';
             if (winner === 1) scoreP1++;
             else if (winner === 2) scoreP2++;
-            
             updateScore();
-            
+
             let totalPoints = scoreP1 + scoreP2;
             server = Math.floor(totalPoints / 2) % 2 === 0 ? 1 : 2;
-            turnOwner = server;
             
             ballSpeedX = 0; ballSpeedY = 0; ballSpeedZ = 0;
+            hasTouchedNet = false;
+            lastHitSide = 0;
+            isFirstBounceAfterServe = true;
             clearTimeout(aiServeTimer);
 
             const msgEl = document.getElementById('message');
             msgEl.style.display = 'block';
-
-            // 判定並顯示得分原因
             if (winner === 1) {
                 msgEl.innerHTML = `<span style="color:#aaa; font-size: 20px;">${reason}</span><br><span style="color:#ff5555;">玩家得分！</span>`;
             } else if (winner === 2) {
                 msgEl.innerHTML = `<span style="color:#aaa; font-size: 20px;">${reason}</span><br><span style="color:#5555ff;">電腦得分！</span>`;
-            } else {
-                msgEl.innerHTML = "比賽開始";
             }
 
-            // 展示 1.5 秒後進入發球準備
             setTimeout(() => {
                 gameState = 'serve';
                 if (server === 1) {
-                    msgEl.innerHTML = "換你發球<br><span style="color:#00ff99; font-size:20px;">(點擊畫面往桌面砸)</span>";
+                    msgEl.innerHTML = `換你發球<br><span style="color:#00ff99; font-size:20px;">(點擊畫面往桌面砸)</span>`;
                 } else {
-                    msgEl.innerHTML = "電腦發球局<br><span style="color:#ff3366; font-size:20px;">(請準備...)</span>";
-                    
+                    msgEl.innerHTML = `電腦發球局<br><span style="color:#ff3366; font-size:20px;">(請準備...)</span>`;
                     aiServeTimer = setTimeout(() => {
                         if (gameState === 'serve' && server === 2) {
                             gameState = 'play';
                             msgEl.style.display = 'none';
-                            ballSpeedZ = BASE_SPEED * 1.5; 
+                            ballSpeedZ = BASE_SPEED * 1.5;
                             ballSpeedX = (Math.random() - 0.5) * BASE_SPEED;
-                            ballSpeedY = -0.15; 
+                            ballSpeedY = -0.15;
+                            lastHitSide = 2;
+                            isFirstBounceAfterServe = true;
                         }
                     }, 1500);
                 }
@@ -224,7 +239,7 @@
             if (gameState === 'serve') {
                 if (server === 1) {
                     ball.position.x = p1.position.x;
-                    ball.position.y = p1.position.y + 0.5; 
+                    ball.position.y = p1.position.y + 0.5;
                     ball.position.z = p1.position.z - 1;
                 } else {
                     p2.position.x += (0 - p2.position.x) * 0.03;
@@ -232,75 +247,107 @@
                     ball.position.y = p2.position.y + 0.5;
                     ball.position.z = p2.position.z + 1;
                 }
-            } else if (gameState === 'play') {
+            } 
+            else if (gameState === 'play') {
                 ball.position.x += ballSpeedX;
                 ball.position.y += ballSpeedY;
                 ball.position.z += ballSpeedZ;
-                ballSpeedY -= GRAVITY; 
+                ballSpeedY -= GRAVITY;
 
-                if (ball.position.y <= 0.6 && ballSpeedY < 0 && Math.abs(ball.position.x) < 5 && Math.abs(ball.position.z) < 8) {
+                // 觸網
+                if (Math.abs(ball.position.z) < 0.3 && ball.position.y < 1.4 && ball.position.y > 0.4) {
+                    if (!hasTouchedNet) {
+                        hasTouchedNet = true;
+                        ballSpeedZ *= -0.35;
+                        ballSpeedX *= 0.6;
+                        ballSpeedY *= 0.8;
+                    }
+                }
+
+                // 桌面碰撞
+                if (ball.position.y <= 0.6 && ballSpeedY < 0 && Math.abs(ball.position.x) < 5.5 && Math.abs(ball.position.z) < 8.5) {
                     ball.position.y = 0.6;
-                    ballSpeedY = Math.abs(ballSpeedY) * 0.9; 
-                    if (ballSpeedY < 0.05) ballSpeedY = 0.05; 
-                    
-                    createBounceEffect(ball.position.x, ball.position.z); 
-                    turnOwner = ball.position.z > 0 ? 1 : 2; 
+                    ballSpeedY = Math.abs(ballSpeedY) * 0.9;
+                    if (ballSpeedY < 0.05) ballSpeedY = 0.05;
+                   
+                    createBounceEffect(ball.position.x, ball.position.z);
+
+                    const currentSide = ball.position.z > 0 ? 1 : 2;
+
+                    if (!isFirstBounceAfterServe) {
+                        if (lastHitSide !== 0 && lastHitSide === currentSide) {
+                            resetPoint(lastHitSide === 1 ? 2 : 1, "球在己方落地");
+                            return;
+                        }
+                    } else {
+                        isFirstBounceAfterServe = false;
+                    }
+
+                    if (hasTouchedNet && lastHitSide === currentSide) {
+                        resetPoint(lastHitSide === 1 ? 2 : 1, "觸網彈回己方");
+                        return;
+                    }
                 }
 
-                if (Math.abs(ball.position.z) < 0.2 && ball.position.y < 1.05 && Math.abs(ball.position.x) < 5) {
-                    ballSpeedZ = -ballSpeedZ * 0.4; 
-                    ballSpeedX *= 0.5;
-                }
-
+                // AI 移動
                 p2.position.x += (ball.position.x - p2.position.x) * 0.05;
                 p2.position.z = -7 + (ball.position.z < 0 ? ball.position.z * 0.2 : 0);
-                p2.position.x = Math.max(Math.min(p2.position.x, 5.5), -5.5); 
+                p2.position.x = Math.max(Math.min(p2.position.x, 5.5), -5.5);
 
-                if (ball.position.distanceTo(p1.position) < 1.6 && ballSpeedZ > 0) {
-                    ballSpeedZ = -BASE_SPEED * 1.5;
-                    ballSpeedY = 0.12; 
-                    ballSpeedX = (ball.position.x - p1.position.x) * 0.03 + (p1VelocityX * 0.3);
-                    turnOwner = 1; 
+                // ==================== 優化後的擊球判定 ====================
+                const distToP1 = ball.position.distanceTo(p1.position);
+                if (distToP1 < 2.2 && ballSpeedZ > -0.05) {   // 加大範圍 + 放寬Z方向條件
+                    ballSpeedZ = -BASE_SPEED * 1.8;           // 更強的回擊
+                    ballSpeedY = 0.16 + Math.random() * 0.05; // 增加向上力量
+                    ballSpeedX = (ball.position.x - p1.position.x) * 0.08 + (p1VelocityX * 0.4);
+                    
+                    lastHitSide = 1;
+                    hasTouchedNet = false;
+                    showHitFeedback("GOOD!");
                 }
-                if (ball.position.distanceTo(p2.position) < 1.6 && ballSpeedZ < 0) {
-                    ballSpeedZ = BASE_SPEED * 1.5;
-                    ballSpeedY = 0.12;
+
+                // 電腦擊球
+                if (ball.position.distanceTo(p2.position) < 1.8 && ballSpeedZ < 0) {
+                    ballSpeedZ = BASE_SPEED * 1.6;
+                    ballSpeedY = 0.14 + Math.random() * 0.04;
                     ballSpeedX = (ball.position.x - p2.position.x) * 0.05;
-                    turnOwner = 2; 
+                    lastHitSide = 2;
+                    hasTouchedNet = false;
                 }
 
-                // 精準裁判邏輯：根據最後責任歸屬判斷出界或漏球
                 if (ball.position.y < -1) {
-                    if (turnOwner === 1) resetPoint(2, "玩家打出界或漏球"); 
-                    else resetPoint(1, "電腦打出界或漏球"); 
+                    resetPoint(lastHitSide === 1 ? 2 : 1, "球出界");
                 }
             }
 
             renderer.render(scene, camera);
         }
-        
-        resetPoint(0); 
+
+        resetPoint(0);
         animate();
 
         function onPointerMove(event) {
             let clientX = event.touches ? event.touches[0].clientX : event.clientX;
             let clientY = event.touches ? event.touches[0].clientY : event.clientY;
-
+            
             let normalizedX = (clientX / window.innerWidth) * 2 - 1;
-            p1.position.x = normalizedX * 6;
-            p1.position.x = Math.max(Math.min(p1.position.x, 5.5), -5.5);
+            p1.position.x = normalizedX * 8.5;
+            p1.position.x = Math.max(Math.min(p1.position.x, 8), -8);
 
             let normalizedY = (clientY / window.innerHeight);
-            p1.position.z = 2 + (normalizedY * 6);
+            p1.position.z = 1.5 + (normalizedY * 9);
         }
 
         function onPointerDown() {
             if (gameState === 'serve' && server === 1) {
                 gameState = 'play';
                 document.getElementById('message').style.display = 'none';
-                ballSpeedZ = -BASE_SPEED * 1.5; 
-                ballSpeedX = (Math.random() - 0.5) * 0.02; 
-                ballSpeedY = -0.15; 
+                ballSpeedZ = -BASE_SPEED * 1.5;
+                ballSpeedX = (Math.random() - 0.5) * 0.02;
+                ballSpeedY = -0.15;
+                hasTouchedNet = false;
+                lastHitSide = 1;
+                isFirstBounceAfterServe = true;
             }
         }
 
@@ -308,6 +355,7 @@
         window.addEventListener('mousemove', onPointerMove);
         window.addEventListener('touchstart', onPointerDown);
         window.addEventListener('mousedown', onPointerDown);
+
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
