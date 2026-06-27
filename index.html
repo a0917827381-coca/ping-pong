@@ -345,6 +345,10 @@
 
     // ==================== 控制 ====================
     function onPointerMove(e) {
+        // 【新增這行】強制取消手機瀏覽器預設的滑動與下拉更新行為
+        if (e.cancelable) {
+            e.preventDefault();
+        }
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
@@ -360,6 +364,10 @@
     }
 
     function onPointerDown() {
+        // 【新增這行】避免點擊時觸發其他預設選取行為
+        if (e && e.cancelable) {
+            e.preventDefault();
+        }
         if (gameState === 'gameover') {
             scoreP1 = 0; 
             scoreP2 = 0;
