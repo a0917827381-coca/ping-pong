@@ -345,29 +345,32 @@
 
     // ==================== 控制 ====================
     function onPointerMove(e) {
-        // 【新增這行】強制取消手機瀏覽器預設的滑動與下拉更新行為
+        // 只在 touchmove 時攔截，防止畫面捲動，且不會導致點擊當機
         if (e.cancelable) {
             e.preventDefault();
         }
+
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
+        // X 軸：稍微放大靈敏度，讓左右更輕鬆
         let nx = (clientX / window.innerWidth) * 2 - 1;
-        p1.position.x = nx * 10; 
+        p1.position.x = nx * 12; 
         p1.position.x = Math.max(Math.min(p1.position.x, 8), -8);
 
-        // 放寬 Z 軸映射比例，讓手勢滑動能涵蓋更深與更淺的空間
+        // Z 軸 (上下)：針對大拇指人體工學進行「非線性放大」
         let ny = clientY / window.innerHeight;
-        p1.position.z = 0 + ny * 11; 
-        // 限制範圍擴大：最近可到網前 0.5，最遠可退至桌後 10
+        
+        // 假設大拇指主要在螢幕 40% ~ 90% 的範圍內活動
+        // 透過減去 0.3 並乘上 18，我們放大了滑動的靈敏度
+        // 現在你只要在螢幕下半部輕輕一滑，球拍就能貫穿全場
+        p1.position.z = (ny - 0.3) * 18; 
         p1.position.z = Math.max(Math.min(p1.position.z, 10), 0.5); 
     }
 
-    function onPointerDown() {
-        // 【新增這行】避免點擊時觸發其他預設選取行為
-        if (e && e.cancelable) {
-            e.preventDefault();
-        }
+    function onPointerDown(e) {
+        // 移除這裡的 e.preventDefault()，保證點擊發球絕對能觸發
+        
         if (gameState === 'gameover') {
             scoreP1 = 0; 
             scoreP2 = 0;
@@ -388,8 +391,10 @@
     }
 
     window.addEventListener('mousemove', onPointerMove);
+    // 【關鍵修復】必須加上 { passive: false }，前面 onPointerMove 的阻擋捲動才會合法且生效
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('mousedown', onPointerDown);
+    // 發球點擊保持預設，不加阻擋，確保順暢觸發
     window.addEventListener('touchstart', onPointerDown);
 
     window.addEventListener('resize', () => {
