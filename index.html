@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極簡 3D 桌球 7.0 (P2P 網路對戰 + 視角翻轉)</title>
+    <title>極簡 3D 桌球 8.0 (虛擬搖桿 + 置頂訊息)</title>
     <style>
         body {
             margin: 0; overflow: hidden; background-color: #1e293b; 
             touch-action: none; font-family: sans-serif; color: white;
+            user-select: none; -webkit-user-select: none;
         }
         /* ===== UI 介面設計 ===== */
         #ui-layer {
@@ -17,23 +18,42 @@
             padding: 40px 0; box-sizing: border-box; z-index: 999;
         }
         .score-board {
-            font-size: 42px; font-weight: bold; display: flex; width: 100%;
+            font-size: 52px; font-weight: bold; display: flex; width: 100%;
             max-width: 400px; justify-content: space-around;
-            text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            text-shadow: 0 4px 12px rgba(0,0,0,0.6); position: relative;
         }
         #score-p2 { color: #60a5fa; }
         #score-p1 { color: #f87171; }
+        
+        /* 訊息框移至頂部中央 */
         #message {
-            font-size: 24px; font-weight: bold; background: rgba(15, 23, 42, 0.85);
-            padding: 20px 35px; border-radius: 15px; text-align: center; display: none;
+            position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
+            font-size: 20px; font-weight: bold; background: rgba(15, 23, 42, 0.85);
+            padding: 12px 24px; border-radius: 12px; text-align: center; display: none;
             border: 1px solid #334155; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            white-space: nowrap; z-index: 1000;
+        }
+
+        /* 虛擬搖桿 UI */
+        #joystick-zone {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            width: 130px; height: 130px; background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.15);
+            pointer-events: auto; display: none; touch-action: none; z-index: 1000;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
+        }
+        #joystick-knob {
+            position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.3); border-radius: 50%;
+            transform: translate(-50%, -50%); pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4); transition: background 0.2s;
         }
         
         /* ===== 選單設計 ===== */
         #menu-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(15, 23, 42, 0.95); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 1000;
+            justify-content: center; align-items: center; z-index: 1001; pointer-events: auto;
         }
         .menu-box {
             background: #1e293b; padding: 40px; border-radius: 20px; text-align: center;
@@ -59,11 +79,14 @@
 </head>
 <body>
     <div id="ui-layer">
+        <div id="message"></div>
         <div class="score-board">
             <span id="score-p2">0</span>
             <span id="score-p1">0</span>
         </div>
-        <div id="message"></div>
+        <div id="joystick-zone">
+            <div id="joystick-knob"></div>
+        </div>
     </div>
 
     <div id="menu-layer">
@@ -92,116 +115,72 @@
 
 <script>
     // ==================== 網路與遊戲模式 ====================
-    let gameMode = 'offline'; // offline, host, guest
+    let gameMode = 'offline'; 
     let peer = null;
     let conn = null;
     let roomId = '';
 
-    // ==================== UI 流程控制 ====================
-    function showMultiplayerMenu() {
-        document.getElementById('main-menu').style.display = 'none';
-        document.getElementById('mp-menu').style.display = 'block';
-    }
-    function backToMain() {
-        document.getElementById('mp-menu').style.display = 'none';
-        document.getElementById('main-menu').style.display = 'block';
-    }
+    function showMultiplayerMenu() { document.getElementById('main-menu').style.display = 'none'; document.getElementById('mp-menu').style.display = 'block'; }
+    function backToMain() { document.getElementById('mp-menu').style.display = 'none'; document.getElementById('main-menu').style.display = 'block'; }
 
-    // 桌主開房
     function createRoom() {
-        roomId = Math.floor(1000 + Math.random() * 9000).toString(); // 4位數桌號
+        roomId = Math.floor(1000 + Math.random() * 9000).toString(); 
         peer = new Peer('pingpong-' + roomId);
-        
-        document.getElementById('mp-menu').style.display = 'none';
-        document.getElementById('waiting-room').style.display = 'block';
+        document.getElementById('mp-menu').style.display = 'none'; document.getElementById('waiting-room').style.display = 'block';
         document.getElementById('room-id-display').innerText = `你的桌號: ${roomId}`;
-
         peer.on('connection', (connection) => {
-            conn = connection;
-            setupConnection();
-            document.getElementById('room-status').innerText = "對手已加入！";
-            document.getElementById('start-btn').style.display = 'block';
+            conn = connection; setupConnection();
+            document.getElementById('room-status').innerText = "對手已加入！"; document.getElementById('start-btn').style.display = 'block';
         });
     }
 
-    // 訪客加入
     function joinRoom() {
         const inputId = document.getElementById('room-input').value;
         if (!inputId) return alert("請輸入桌號");
-        
         peer = new Peer();
         peer.on('open', () => {
-            conn = peer.connect('pingpong-' + inputId);
-            setupConnection();
-            document.getElementById('mp-menu').style.display = 'none';
-            document.getElementById('waiting-room').style.display = 'block';
-            document.getElementById('room-id-display').innerText = `已連接桌號: ${inputId}`;
-            document.getElementById('room-status').innerText = "等待桌主開始遊戲...";
+            conn = peer.connect('pingpong-' + inputId); setupConnection();
+            document.getElementById('mp-menu').style.display = 'none'; document.getElementById('waiting-room').style.display = 'block';
+            document.getElementById('room-id-display').innerText = `已連接桌號: ${inputId}`; document.getElementById('room-status').innerText = "等待桌主開始遊戲...";
         });
     }
 
-    // 處理資料傳輸
     function setupConnection() {
         conn.on('data', (data) => {
-            if (data.type === 'start') {
-                gameMode = 'guest'; // 收到開始訊號，設定為訪客
-                startGameUI();
-                setCameraPerspective('guest'); 
-            }
-            if (gameMode === 'host' && data.type === 'guest_pos') {
-                // 桌主接收訪客拍子位置
-                p2.position.x = data.x;
-                p2.position.z = data.z;
+            if (data.type === 'start') { gameMode = 'guest'; startGameUI(); setCameraPerspective('guest'); }
+            if (gameMode === 'host' && data.type === 'guest_pos') { p2.position.x = data.x; p2.position.z = data.z; }
+            if (gameMode === 'host' && data.type === 'guest_serve' && gameState === 'serve' && server === 2) {
+                gameState = 'play'; ballState = 'p2_serve_hit'; document.getElementById('message').style.display = 'none';
+                ballSpeedZ = BASE_SPEED * 1.7; ballSpeedX = (Math.random() - 0.5) * 0.03; ballSpeedY = -0.14; ball.userData.spin.set(0, 0, -0.06);
             }
             if (gameMode === 'guest' && data.type === 'sync') {
-                // 訪客接收桌主的物理運算結果
                 ball.position.set(data.bx, data.by, data.bz);
                 p1.position.set(data.p1x, 1.3, data.p1z);
-                scoreP1 = data.s1;
-                scoreP2 = data.s2;
-                updateScore();
-                
+                scoreP1 = data.s1; scoreP2 = data.s2; updateScore();
                 if (data.msg) showMessage(data.msg, data.msgDur);
             }
         });
     }
 
-    function startMultiplayer() {
-        gameMode = 'host';
-        conn.send({ type: 'start' });
-        startGameUI();
-        setCameraPerspective('host');
-        resetPoint(0);
-    }
-
-    function startOffline() {
-        gameMode = 'offline';
-        startGameUI();
-        setCameraPerspective('host');
-        resetPoint(0);
-    }
+    function startMultiplayer() { gameMode = 'host'; conn.send({ type: 'start' }); startGameUI(); setCameraPerspective('host'); resetPoint(0); }
+    function startOffline() { gameMode = 'offline'; startGameUI(); setCameraPerspective('host'); resetPoint(0); }
 
     function startGameUI() {
         document.getElementById('menu-layer').style.display = 'none';
-        document.getElementById('ui-layer').style.pointerEvents = 'none';
+        document.getElementById('joystick-zone').style.display = 'block'; // 顯示搖桿
     }
 
-    // ===== 核心：視角與控制翻轉 =====
     function setCameraPerspective(role) {
         if (role === 'guest') {
-            // 訪客（藍拍）：鏡頭移到對面，往回看。紅拍在遠方，藍拍在近處下方
-            camera.position.set(0, 18, -26);
-            camera.lookAt(0, 0, 0);
-            document.getElementById('score-p2').style.color = '#f87171'; // 視覺上自己的分數換邊
+            camera.position.set(0, 18, -26); camera.lookAt(0, 0, 0);
+            document.getElementById('score-p2').style.color = '#f87171';
             document.getElementById('score-p1').style.color = '#60a5fa';
         } else {
-            // 桌主/單機（紅拍）：預設視角
-            camera.position.set(0, 18, 26);
-            camera.lookAt(0, 0, 0);
+            camera.position.set(0, 18, 26); camera.lookAt(0, 0, 0);
         }
     }
 
-    // ==================== 基本 3D 設定 (略縮以節省空間，維持原本質感) ====================
+    // ==================== 基本 3D 設定 ====================
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1e293b); 
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -216,16 +195,10 @@
     dirLight.position.set(8, 25, 12); dirLight.castShadow = true;
     scene.add(dirLight);
 
-    const table = new THREE.Mesh(
-        new THREE.BoxGeometry(10, 0.5, 16),
-        new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3 }) 
-    );
+    const table = new THREE.Mesh(new THREE.BoxGeometry(10, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3 }));
     table.receiveShadow = true; scene.add(table);
 
-    const net = new THREE.Mesh(
-        new THREE.BoxGeometry(10, 0.9, 0.05),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
-    );
+    const net = new THREE.Mesh(new THREE.BoxGeometry(10, 0.9, 0.05), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
     net.position.y = 0.7; net.castShadow = true; scene.add(net);
 
     function createRacket(rubberColor) {
@@ -241,14 +214,18 @@
     const ball = new THREE.Mesh(new THREE.SphereGeometry(0.32, 32), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.1 }));
     ball.castShadow = true; ball.userData.spin = new THREE.Vector3(0,0,0); scene.add(ball);
 
-    // ==================== 遊戲核心變數 ====================
+    // ==================== 遊戲邏輯與搖桿變數 ====================
     let gameState = 'wait', server = 1, scoreP1 = 0, scoreP2 = 0;
     let ballState = 'idle'; 
     const BASE_SPEED = 0.085, GRAVITY = 0.0055, WIN_SCORE = 21; 
     let ballSpeedX = 0, ballSpeedY = 0, ballSpeedZ = 0;
     let p1LastX = 0, p1VelocityX = 0;
     let hasTouchedNet = false;
-    let currentMsg = ''; // 用於網路同步訊息
+    let currentMsg = ''; 
+
+    // 搖桿專用變數
+    let stickActive = false;
+    let stickPos = { x: 0, y: 0 }; 
 
     function updateScore() {
         document.getElementById('score-p1').innerText = scoreP1;
@@ -256,16 +233,14 @@
     }
 
     function showMessage(html, duration = 1600) {
-        if(gameMode === 'host') currentMsg = html; // 記錄下來傳給訪客
+        if(gameMode === 'host') currentMsg = html; 
         const msg = document.getElementById('message');
         msg.innerHTML = html; msg.style.display = 'block';
         if (duration < 99999) setTimeout(() => { msg.style.display = 'none'; currentMsg = ''; }, duration);
     }
 
-    // 核心重置邏輯 (只有 offline 跟 host 會執行)
     function resetPoint(winner, reason = "") {
         if(gameMode === 'guest') return; 
-
         gameState = 'wait';
         if (winner === 1) scoreP1++; else if (winner === 2) scoreP2++;
         updateScore();
@@ -274,7 +249,7 @@
         ballSpeedX = ballSpeedY = ballSpeedZ = 0; ball.userData.spin.set(0,0,0);
         hasTouchedNet = false; ballState = 'idle';
 
-        let msgHTML = reason ? `<span style="color:#94a3b8;font-size:20px;">${reason}</span><br>` : '';
+        let msgHTML = reason ? `<span style="color:#94a3b8;font-size:14px;">${reason}</span><br>` : '';
         if (winner !== 0) {
             msgHTML += `<span style="color:${winner === 1 ? '#f87171' : '#60a5fa'};">${winner === 1 ? '紅拍' : '藍拍'}得分！</span>`;
             showMessage(msgHTML);
@@ -292,14 +267,12 @@
 
     function aiServe() {
         if (gameState !== 'serve' || server !== 2 || gameMode !== 'offline') return;
-        gameState = 'play'; ballState = 'p2_serve_hit';
-        document.getElementById('message').style.display = 'none';
+        gameState = 'play'; ballState = 'p2_serve_hit'; document.getElementById('message').style.display = 'none';
         ball.position.set(0, 1.8, -6);
         ballSpeedZ = BASE_SPEED * 1.6; ballSpeedX = (Math.random() - 0.5) * 0.04; ballSpeedY = -0.16;
     }
 
     function checkCollisions() {
-        // ... (保留你原本精準的桌球規則與碰撞邏輯，由 Host 統一運算) ...
         if (ball.position.y <= 0.6 && ballSpeedY < 0 && Math.abs(ball.position.x) < 5.2 && Math.abs(ball.position.z) < 8.2) {
             ball.position.y = 0.6; ballSpeedY = Math.abs(ballSpeedY) * 0.88;
             if (ballSpeedY < 0.04) ballSpeedY = 0.04;
@@ -321,14 +294,12 @@
             return;
         }
 
-        // P1 擊球判定
         if (ballState === 'p1_must_hit' && ball.position.distanceTo(p1.position) < 2.5 && ballSpeedZ > 0) {
             ballSpeedZ = -BASE_SPEED * 1.85; ballSpeedY = 0.16;
             ballSpeedX = (ball.position.x - p1.position.x) * 0.05 + p1VelocityX * 0.5;
             ballState = 'p1_hit';
         }
 
-        // P2 擊球判定 (如果是真人對戰，把判定交給真實碰撞；如果是單機，交給AI)
         if (ballState === 'p2_must_hit' && ball.position.distanceTo(p2.position) < 2.5 && ballSpeedZ < 0) {
             ballSpeedZ = BASE_SPEED * 1.85; ballSpeedY = 0.16;
             ballSpeedX = (ball.position.x - p2.position.x) * 0.05;
@@ -336,14 +307,80 @@
         }
     }
 
+    // ==================== 搖桿控制邏輯 ====================
+    const joyZone = document.getElementById('joystick-zone');
+    const joyKnob = document.getElementById('joystick-knob');
+    const maxJoyRadius = 45;
+
+    function handleJoyEvent(e) {
+        if (!stickActive && e.type !== 'touchstart' && e.type !== 'mousedown') return;
+        e.preventDefault();
+        
+        // 觸發發球
+        if ((e.type === 'touchstart' || e.type === 'mousedown') && gameState === 'serve') {
+            if ((gameMode === 'host' || gameMode === 'offline') && server === 1) {
+                gameState = 'play'; ballState = 'p1_serve_hit'; document.getElementById('message').style.display = 'none';
+                ballSpeedZ = -BASE_SPEED * 1.7; ballSpeedX = (Math.random() - 0.5) * 0.03; ballSpeedY = -0.14; ball.userData.spin.set(0, 0, 0.06);
+            } else if (gameMode === 'guest' && server === 2) {
+                conn.send({ type: 'guest_serve' });
+            }
+        }
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const rect = joyZone.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        let dx = clientX - centerX;
+        let dy = clientY - centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance > maxJoyRadius) {
+            dx = (dx / distance) * maxJoyRadius;
+            dy = (dy / distance) * maxJoyRadius;
+        }
+        
+        joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+        stickPos.x = dx / maxJoyRadius;
+        stickPos.y = dy / maxJoyRadius;
+    }
+
+    joyZone.addEventListener('mousedown', (e) => { stickActive = true; joyKnob.style.background = 'rgba(255,255,255,0.6)'; handleJoyEvent(e); });
+    joyZone.addEventListener('touchstart', (e) => { stickActive = true; joyKnob.style.background = 'rgba(255,255,255,0.6)'; handleJoyEvent(e); }, {passive: false});
+    window.addEventListener('mousemove', handleJoyEvent);
+    window.addEventListener('touchmove', handleJoyEvent, {passive: false});
+    
+    function endJoy() { 
+        stickActive = false; stickPos = {x:0, y:0}; 
+        joyKnob.style.transform = `translate(-50%, -50%)`; 
+        joyKnob.style.background = 'rgba(255,255,255,0.3)';
+    }
+    window.addEventListener('mouseup', endJoy);
+    window.addEventListener('touchend', endJoy);
+
+    // ==================== 主循環 ====================
     function animate() {
         requestAnimationFrame(animate);
+        
+        // 搖桿轉換為球拍位移 (Velocity Mapping)
+        const paddleSpeed = 0.55; 
+        if (gameMode === 'guest') {
+            p2.position.x += -stickPos.x * paddleSpeed; 
+            p2.position.z += stickPos.y * paddleSpeed; 
+            p2.position.x = Math.max(Math.min(p2.position.x, 8), -8);
+            p2.position.z = Math.max(Math.min(p2.position.z, -0.5), -10);
+            if(conn && stickActive) conn.send({ type: 'guest_pos', x: p2.position.x, z: p2.position.z });
+        } else {
+            p1.position.x += stickPos.x * paddleSpeed;
+            p1.position.z += stickPos.y * paddleSpeed;
+            p1.position.x = Math.max(Math.min(p1.position.x, 8), -8);
+            p1.position.z = Math.max(Math.min(p1.position.z, 10), 0.5);
+        }
+
         if (gameMode !== 'guest') { 
-            // 桌主/單機 負責運算物理
             p1VelocityX = p1.position.x - p1LastX; p1LastX = p1.position.x;
-            if (gameState === 'serve' && server === 1) {
-                ball.position.set(p1.position.x, p1.position.y + 0.6, p1.position.z - 1.2);
-            }
+            if (gameState === 'serve' && server === 1) ball.position.set(p1.position.x, p1.position.y + 0.6, p1.position.z - 1.2);
             if (gameState === 'play') {
                 ball.position.x += ballSpeedX; ball.position.y += ballSpeedY; ball.position.z += ballSpeedZ;
                 ballSpeedY -= GRAVITY;
@@ -353,59 +390,14 @@
                     p2.position.z = -7 + (ball.position.z < -1 ? (ball.position.z + 7) * 0.25 : 0);
                 }
             }
-            // 透過網路同步給訪客
             if (gameMode === 'host' && conn) {
-                conn.send({
-                    type: 'sync', bx: ball.position.x, by: ball.position.y, bz: ball.position.z,
-                    p1x: p1.position.x, p1z: p1.position.z, s1: scoreP1, s2: scoreP2, msg: currentMsg, msgDur: 1600
-                });
+                conn.send({ type: 'sync', bx: ball.position.x, by: ball.position.y, bz: ball.position.z, p1x: p1.position.x, p1z: p1.position.z, s1: scoreP1, s2: scoreP2, msg: currentMsg, msgDur: 1600 });
             }
         }
         renderer.render(scene, camera);
     }
 
-    // ==================== 輸入控制與座標翻轉 ====================
-    function onPointerMove(e) {
-        if (e.cancelable) e.preventDefault();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        let nx = (clientX / window.innerWidth) * 2 - 1;
-        let ny = (e.touches ? e.touches[0].clientY : e.clientY) / window.innerHeight;
-        let mappedZ = e.touches ? (ny - 0.4) * 30 : (ny - 0.3) * 18;
-
-        if (gameMode === 'guest') {
-            // 訪客控制 P2，視角是反的，所以操作也要鏡像反轉
-            p2.position.x = -nx * 12; 
-            p2.position.z = -mappedZ; 
-            p2.position.z = Math.max(Math.min(p2.position.z, -0.5), -10);
-            
-            // 傳送自己的位置給桌主
-            if(conn) conn.send({ type: 'guest_pos', x: p2.position.x, z: p2.position.z });
-        } else {
-            // 桌主/單機控制 P1
-            p1.position.x = nx * 12; 
-            p1.position.z = mappedZ;
-            p1.position.z = Math.max(Math.min(p1.position.z, 10), 0.5);
-        }
-    }
-
-    function onPointerDown(e) {
-        if (gameState === 'serve') {
-            if ((gameMode === 'host' || gameMode === 'offline') && server === 1) {
-                gameState = 'play'; ballState = 'p1_serve_hit'; document.getElementById('message').style.display = 'none';
-                ballSpeedZ = -BASE_SPEED * 1.7; ballSpeedX = (Math.random() - 0.5) * 0.03; ballSpeedY = -0.14;
-            } else if (gameMode === 'guest' && server === 2) {
-                // 訪客發球
-                conn.send({ type: 'guest_serve' }); // 簡化處理：通知桌主我要發球了
-            }
-        }
-    }
-
-    window.addEventListener('mousemove', onPointerMove);
-    window.addEventListener('touchmove', onPointerMove, { passive: false });
-    window.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('touchstart', onPointerDown);
     window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
-
     animate();
 </script>
 </body>
