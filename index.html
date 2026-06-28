@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極簡 3D 桌球 9.0 (終極完整版)</title>
+    <title>極簡 3D 桌球 11.0 (新手手冊版)</title>
     <style>
         body {
             margin: 0; overflow: hidden; background-color: #1e293b; 
             touch-action: none; font-family: sans-serif; color: white;
             user-select: none; -webkit-user-select: none;
         }
-        /* ===== UI 介面設計 ===== */
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; display: flex; flex-direction: column;
@@ -25,7 +24,6 @@
         #score-p2 { color: #60a5fa; }
         #score-p1 { color: #f87171; }
         
-        /* 訊息框移至頂部中央 */
         #message {
             position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
             font-size: 20px; font-weight: bold; background: rgba(15, 23, 42, 0.85);
@@ -34,7 +32,12 @@
             white-space: nowrap; z-index: 1000;
         }
 
-        /* 虛擬搖桿 UI */
+        #action-text {
+            position: absolute; top: 120px; font-size: 28px; font-weight: 900;
+            font-style: italic; letter-spacing: 2px; text-shadow: 0 0 15px currentColor;
+            opacity: 0; transition: opacity 0.2s; z-index: 998;
+        }
+
         #joystick-zone {
             position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
             width: 130px; height: 130px; background: rgba(255, 255, 255, 0.05);
@@ -49,7 +52,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.4); transition: background 0.2s;
         }
         
-        /* ===== 選單設計 ===== */
         #menu-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(15, 23, 42, 0.95); display: flex; flex-direction: column;
@@ -58,7 +60,15 @@
         .menu-box {
             background: #1e293b; padding: 40px; border-radius: 20px; text-align: center;
             border: 2px solid #334155; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            max-width: 85%; max-height: 80vh; overflow-y: auto; box-sizing: border-box;
         }
+        
+        /* 手冊專用樣式 */
+        .tutorial-content { text-align: left; line-height: 1.6; }
+        .tutorial-content h3 { border-bottom: 1px solid #334155; padding-bottom: 5px; margin-top: 25px; }
+        .tutorial-content ul { padding-left: 20px; margin-bottom: 20px; }
+        .tutorial-content li { margin-bottom: 10px; }
+
         h1 { margin-top: 0; color: #f8fafc; font-size: 32px; }
         .btn {
             display: block; width: 100%; padding: 15px; margin: 15px 0; font-size: 20px;
@@ -73,6 +83,11 @@
             border: 1px solid #475569; background: #0f172a; color: white; text-align: center;
             box-sizing: border-box; margin-bottom: 15px;
         }
+        
+        /* 捲軸美化 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -80,6 +95,7 @@
 <body>
     <div id="ui-layer">
         <div id="message"></div>
+        <div id="action-text">KILL!</div>
         <div class="score-board">
             <span id="score-p2">0</span>
             <span id="score-p1">0</span>
@@ -92,10 +108,38 @@
     <div id="menu-layer">
         <div class="menu-box" id="main-menu">
             <h1>極簡 3D 桌球</h1>
+            <button class="btn btn-green" onclick="showTutorial()">📖 新手手冊</button>
             <button class="btn" onclick="startOffline()">電腦對戰</button>
             <button class="btn btn-red" onclick="showMultiplayerMenu()">真人對決</button>
         </div>
         
+        <div class="menu-box tutorial-content" id="tutorial-menu" style="display:none;">
+            <h1 style="text-align:center;">新手手冊</h1>
+            
+            <h3 style="color:#60a5fa;">📌 基本規則</h3>
+            <ul>
+                <li>率先獲得 <b>21分</b> 者獲勝。</li>
+                <li><b>發球：</b>球必須在自己桌面先彈跳一次，越網後再於對手桌面彈跳一次。</li>
+                <li><b>回擊：</b>對手擊回的球，必須在己方桌面彈跳「一次」後才能揮拍，嚴禁空中直接截擊。</li>
+            </ul>
+
+            <h3 style="color:#f87171;">🕹️ 核心控制 (絕對座標)</h3>
+            <ul>
+                <li>底部的虛擬搖桿等同於<b>「半場縮小版地圖」</b>。</li>
+                <li>操作搖桿並非控制速度，而是<b>「指哪打哪」</b>，大拇指推到哪裡，球拍就瞬間移動到該對應位置。</li>
+            </ul>
+
+            <h3 style="color:#facc15;">🔥 進階球路 (意圖判定)</h3>
+            <p style="color:#94a3b8; font-size:16px;">在擊球的「瞬間」，系統會偵測你的大拇指動態來觸發必殺技：</p>
+            <ul>
+                <li><b style="color:#e2e8f0;">平推擋球：</b>搖桿靜止或緩慢移動。(一般防守過渡)</li>
+                <li><b style="color:#f87171;">爆衝殺球：</b>擊球瞬間大拇指<b>「急速往前推」</b>。(發出火紅特效與卡肉感，球速極快)</li>
+                <li><b style="color:#facc15;">側拐弧圈：</b>擊球瞬間大拇指<b>「急速向左或向右滑」</b>。(發出黃色特效，球在空中會產生大弧線甩尾)</li>
+                <li><b style="color:#38bdf8;">卸力擺短：</b>在球即將碰觸球拍前<b>「直接鬆開手指」</b>。(發出淺藍特效，球過網後會無力急墜，專剋站位太遠的對手)</li>
+            </ul>
+            <button class="btn" style="background:#475569; margin-top:30px;" onclick="backToMainFromTutorial()">返回主畫面</button>
+        </div>
+
         <div class="menu-box" id="mp-menu" style="display:none;">
             <h1>真人對決</h1>
             <button class="btn btn-red" onclick="createRoom()">建立球桌 (當桌主)</button>
@@ -114,15 +158,16 @@
     </div>
 
 <script>
-    // ==================== 網路與遊戲模式 ====================
+    // ==================== UI 流程切換 ====================
     let gameMode = 'offline'; 
-    let peer = null;
-    let conn = null;
-    let roomId = '';
+    let peer = null, conn = null, roomId = '';
 
+    function showTutorial() { document.getElementById('main-menu').style.display = 'none'; document.getElementById('tutorial-menu').style.display = 'block'; }
+    function backToMainFromTutorial() { document.getElementById('tutorial-menu').style.display = 'none'; document.getElementById('main-menu').style.display = 'block'; }
     function showMultiplayerMenu() { document.getElementById('main-menu').style.display = 'none'; document.getElementById('mp-menu').style.display = 'block'; }
     function backToMain() { document.getElementById('mp-menu').style.display = 'none'; document.getElementById('main-menu').style.display = 'block'; }
 
+    // ==================== 網路連線 ====================
     function createRoom() {
         roomId = Math.floor(1000 + Math.random() * 9000).toString(); 
         peer = new Peer('pingpong-' + roomId);
@@ -148,19 +193,22 @@
     function setupConnection() {
         conn.on('data', (data) => {
             if (data.type === 'start') { gameMode = 'guest'; startGameUI(); setCameraPerspective('guest'); }
-            if (gameMode === 'host' && data.type === 'guest_pos') { p2.position.x = data.x; p2.position.z = data.z; }
+            if (gameMode === 'host' && data.type === 'guest_pos') { 
+                p2.position.x = data.x; p2.position.z = data.z; guestActive = data.a; 
+            }
             if (gameMode === 'host' && data.type === 'guest_serve' && gameState === 'serve' && server === 2) {
                 gameState = 'play'; ballState = 'p2_serve_hit'; document.getElementById('message').style.display = 'none';
                 ballSpeedZ = BASE_SPEED * 1.7; ballSpeedX = (Math.random() - 0.5) * 0.03; ballSpeedY = -0.14; ball.userData.spin.set(0, 0, -0.06);
             }
-            if (gameMode === 'host' && data.type === 'restart' && gameState === 'gameover') {
-                executeRestart();
-            }
+            if (gameMode === 'host' && data.type === 'restart' && gameState === 'gameover') executeRestart();
+            
             if (gameMode === 'guest' && data.type === 'sync') {
                 ball.position.set(data.bx, data.by, data.bz);
+                ball.material.color.setHex(data.c); 
                 p1.position.set(data.p1x, 1.3, data.p1z);
                 scoreP1 = data.s1; scoreP2 = data.s2; updateScore();
                 if (data.msg) showMessage(data.msg, data.msgDur);
+                if (data.actionStr) showActionText(data.actionStr, data.actionColor);
             }
         });
     }
@@ -176,31 +224,27 @@
     function setCameraPerspective(role) {
         if (role === 'guest') {
             camera.position.set(0, 18, -26); camera.lookAt(0, 0, 0);
-            document.getElementById('score-p2').style.color = '#f87171';
-            document.getElementById('score-p1').style.color = '#60a5fa';
+            document.getElementById('score-p2').style.color = '#f87171'; document.getElementById('score-p1').style.color = '#60a5fa';
         } else {
             camera.position.set(0, 18, 26); camera.lookAt(0, 0, 0);
         }
     }
 
-    // ==================== 基本 3D 設定 ====================
+    // ==================== 3D 與特效設定 ====================
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1e293b); 
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.5)); 
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(8, 25, 12); dirLight.castShadow = true;
-    scene.add(dirLight);
+    dirLight.position.set(8, 25, 12); dirLight.castShadow = true; scene.add(dirLight);
 
     const table = new THREE.Mesh(new THREE.BoxGeometry(10, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3 }));
     table.receiveShadow = true; scene.add(table);
-
     const net = new THREE.Mesh(new THREE.BoxGeometry(10, 0.9, 0.05), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
     net.position.y = 0.7; net.castShadow = true; scene.add(net);
 
@@ -210,63 +254,52 @@
         head.rotation.x = Math.PI / 2; head.castShadow = true; group.add(head);
         return group;
     }
-
     const p1 = createRacket(0xef4444); p1.position.set(0, 1.3, 7); scene.add(p1);
     const p2 = createRacket(0x3b82f6); p2.position.set(0, 1.3, -7); scene.add(p2);
 
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.32, 32), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.1 }));
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.32, 32), new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.1, emissive: 0x000000 }));
     ball.castShadow = true; ball.userData.spin = new THREE.Vector3(0,0,0); scene.add(ball);
 
-    // ==================== 遊戲邏輯與計分變數 ====================
-    let gameState = 'wait', server = 1, scoreP1 = 0, scoreP2 = 0;
-    let ballState = 'idle'; 
+    let gameState = 'wait', server = 1, scoreP1 = 0, scoreP2 = 0, ballState = 'idle'; 
     const BASE_SPEED = 0.085, GRAVITY = 0.0055, WIN_SCORE = 21; 
     let ballSpeedX = 0, ballSpeedY = 0, ballSpeedZ = 0;
-    let p1LastX = 0, p1VelocityX = 0;
-    let hasTouchedNet = false;
-    let currentMsg = ''; 
+    
+    let p1LastX = 0, p1LastZ = 0, p1VelocityX = 0, p1VelocityZ = 0;
+    let p2LastX = 0, p2LastZ = 0, p2VelocityX = 0, p2VelocityZ = 0;
+    let hasTouchedNet = false, currentMsg = '', hitStopFrames = 0;
+    let stickActive = false, stickPos = { x: 0, y: 0 }, guestActive = false; 
+    let currentActionStr = '', currentActionColor = '';
 
-    let stickActive = false;
-    let stickPos = { x: 0, y: 0 }; 
-
-    function updateScore() {
-        document.getElementById('score-p1').innerText = scoreP1;
-        document.getElementById('score-p2').innerText = scoreP2;
-    }
-
+    function updateScore() { document.getElementById('score-p1').innerText = scoreP1; document.getElementById('score-p2').innerText = scoreP2; }
     function showMessage(html, duration = 1600) {
         if(gameMode === 'host') currentMsg = html; 
         const msg = document.getElementById('message');
         msg.innerHTML = html; msg.style.display = 'block';
         if (duration < 99999) setTimeout(() => { msg.style.display = 'none'; currentMsg = ''; }, duration);
     }
+    
+    function showActionText(text, colorStr) {
+        if(gameMode === 'host') { currentActionStr = text; currentActionColor = colorStr; }
+        const actNode = document.getElementById('action-text');
+        actNode.innerText = text; actNode.style.color = colorStr;
+        actNode.style.opacity = 1; actNode.style.transform = 'scale(1.2)';
+        setTimeout(() => { actNode.style.transform = 'scale(1)'; }, 50);
+        setTimeout(() => { actNode.style.opacity = 0; currentActionStr = ''; }, 600);
+    }
 
     window.triggerRestart = function() {
         document.getElementById('message').style.pointerEvents = 'none'; 
         if (gameMode === 'guest') {
-            if(conn) conn.send({ type: 'restart' });
-            showMessage(`<span style="color:#94a3b8;font-size:18px;">已發送請求，等待桌主...</span>`, 999999);
-        } else {
-            executeRestart();
-        }
+            if(conn) conn.send({ type: 'restart' }); showMessage(`<span style="color:#94a3b8;font-size:18px;">已發送請求...</span>`, 999999);
+        } else executeRestart();
     };
-
-    window.executeRestart = function() {
-        scoreP1 = 0; scoreP2 = 0; 
-        document.getElementById('message').style.display = 'none';
-        resetPoint(0); 
-    };
+    window.executeRestart = function() { scoreP1 = 0; scoreP2 = 0; document.getElementById('message').style.display = 'none'; resetPoint(0); };
 
     function checkWinCondition() {
         if (scoreP1 >= WIN_SCORE || scoreP2 >= WIN_SCORE) {
-            gameState = 'gameover'; 
-            const winnerName = scoreP1 >= WIN_SCORE ? '紅拍' : '藍拍';
-            const winnerColor = scoreP1 >= WIN_SCORE ? '#f87171' : '#60a5fa';
-            
-            document.getElementById('message').style.pointerEvents = 'auto'; 
-            
+            gameState = 'gameover'; document.getElementById('message').style.pointerEvents = 'auto'; 
             showMessage(`
-                <span style="font-size:32px; color:${winnerColor};">${winnerName} 獲勝！</span><br>
+                <span style="font-size:32px; color:${scoreP1 >= WIN_SCORE ? '#f87171' : '#60a5fa'};">${scoreP1 >= WIN_SCORE ? '紅拍' : '藍拍'} 獲勝！</span><br>
                 最終比數 ${scoreP1} : ${scoreP2}<br>
                 <button class="btn btn-green" onclick="triggerRestart()" style="margin-top:15px; padding:10px; width:100%; pointer-events:auto;">再來一局</button>
             `, 999999);
@@ -277,53 +310,51 @@
 
     function resetPoint(winner, reason = "") {
         if(gameMode === 'guest') return; 
-        gameState = 'wait';
-        if (winner === 1) scoreP1++; else if (winner === 2) scoreP2++;
-        updateScore();
-
-        if (winner !== 0 && checkWinCondition()) return;
+        gameState = 'wait'; if (winner === 1) scoreP1++; else if (winner === 2) scoreP2++;
+        updateScore(); if (winner !== 0 && checkWinCondition()) return;
 
         server = (Math.floor((scoreP1 + scoreP2) / 2) % 2 === 0) ? 1 : 2;
         ballSpeedX = ballSpeedY = ballSpeedZ = 0; ball.userData.spin.set(0,0,0);
+        ball.material.color.setHex(0xffffff);
         hasTouchedNet = false; ballState = 'idle';
 
         let msgHTML = reason ? `<span style="color:#94a3b8;font-size:14px;">${reason}</span><br>` : '';
-        if (winner !== 0) {
-            msgHTML += `<span style="color:${winner === 1 ? '#f87171' : '#60a5fa'};">${winner === 1 ? '紅拍' : '藍拍'}得分！</span>`;
-            showMessage(msgHTML);
-        }
+        if (winner !== 0) { msgHTML += `<span style="color:${winner === 1 ? '#f87171' : '#60a5fa'};">${winner === 1 ? '紅拍' : '藍拍'}得分！</span>`; showMessage(msgHTML); }
 
         setTimeout(() => {
-            if (gameState === 'gameover') return; 
-            gameState = 'serve';
+            if (gameState === 'gameover') return; gameState = 'serve';
             if (server === 1) showMessage(`紅拍發球`, 999999);
-            else {
-                showMessage(`藍拍發球`, 999999);
-                if(gameMode === 'offline') setTimeout(aiServe, 1400);
-            }
+            else { showMessage(`藍拍發球`, 999999); if(gameMode === 'offline') setTimeout(aiServe, 1400); }
         }, winner === 0 ? 0 : 1400);
     }
 
     function aiServe() {
         if (gameState !== 'serve' || server !== 2 || gameMode !== 'offline') return;
         gameState = 'play'; ballState = 'p2_serve_hit'; document.getElementById('message').style.display = 'none';
-        ball.position.set(0, 1.8, -6);
-        ballSpeedZ = BASE_SPEED * 1.6; ballSpeedX = (Math.random() - 0.5) * 0.04; ballSpeedY = -0.16;
+        ball.position.set(0, 1.8, -6); ballSpeedZ = BASE_SPEED * 1.6; ballSpeedX = (Math.random() - 0.5) * 0.04; ballSpeedY = -0.16;
     }
 
+    // ==================== 物理與意圖判定核心 ====================
     function checkCollisions() {
         if (ball.position.y <= 0.6 && ballSpeedY < 0 && Math.abs(ball.position.x) < 5.2 && Math.abs(ball.position.z) < 8.2) {
             ball.position.y = 0.6; ballSpeedY = Math.abs(ballSpeedY) * 0.88;
             if (ballSpeedY < 0.04) ballSpeedY = 0.04;
+            ball.material.color.setHex(0xffffff); 
+            
             const isP1Side = ball.position.z > 0;
+            // 🎯 修正 Bug 1：補回所有未過網與兩彈失分的嚴格規則判定
             if (isP1Side) {
                 if (ballState === 'p1_serve_hit') ballState = 'p1_serve_bounced';
                 else if (ballState === 'p2_hit' || ballState === 'p2_serve_bounced') ballState = 'p1_must_hit';
                 else if (ballState === 'p1_must_hit') resetPoint(2, "兩彈失分");
+                else if (ballState === 'p1_serve_bounced') resetPoint(2, "發球未過網");
+                else if (ballState === 'p1_hit') resetPoint(2, "擊球未過網");
             } else {
                 if (ballState === 'p2_serve_hit') ballState = 'p2_serve_bounced';
                 else if (ballState === 'p1_hit' || ballState === 'p1_serve_bounced') ballState = 'p2_must_hit';
                 else if (ballState === 'p2_must_hit') resetPoint(1, "兩彈失分");
+                else if (ballState === 'p2_serve_bounced') resetPoint(1, "發球未過網");
+                else if (ballState === 'p2_hit') resetPoint(1, "擊球未過網");
             }
         }
         
@@ -337,18 +368,65 @@
         }
 
         if (ballState === 'p1_must_hit' && ball.position.distanceTo(p1.position) < 2.5 && ballSpeedZ > 0) {
-            ballSpeedZ = -BASE_SPEED * 1.85; ballSpeedY = 0.16;
-            ballSpeedX = (ball.position.x - p1.position.x) * 0.05 + p1VelocityX * 0.5;
+            let intent = 'normal';
+            if (!stickActive) intent = 'drop'; 
+            else if (p1VelocityZ < -0.1) intent = 'smash'; 
+            else if (Math.abs(p1VelocityX) > 0.1 && Math.abs(p1VelocityX) > Math.abs(p1VelocityZ)) intent = 'side'; 
+            
+            if (intent === 'drop') {
+                // 🎯 修正 Bug 2：智慧導航，動態計算剛好過網的距離 (-1.5 是剛好過網的位置，80 是滯空影格數)
+                ballSpeedZ = (-1.5 - ball.position.z) / 80; 
+                ballSpeedY = 0.22; ballSpeedX = (0 - ball.position.x) * 0.015; // 稍微往球桌中線吸附
+                ball.userData.spin.set(0, 0, 0.08); ball.material.color.setHex(0x38bdf8); 
+                showActionText("卸力擺短", "#38bdf8");
+            } else if (intent === 'smash') {
+                ballSpeedZ = -BASE_SPEED * 3.5; ballSpeedY = 0.06; ballSpeedX = (ball.position.x - p1.position.x) * 0.08;
+                ball.userData.spin.set(0, 0, -0.05); ball.material.color.setHex(0xf87171); 
+                hitStopFrames = 6; 
+                showActionText("爆衝殺球!!", "#f87171");
+            } else if (intent === 'side') {
+                ballSpeedZ = -BASE_SPEED * 1.6; ballSpeedY = 0.16; ballSpeedX = p1VelocityX * 0.8;
+                ball.userData.spin.set(p1VelocityX * 0.3, 0, -0.05); ball.material.color.setHex(0xfacc15); 
+                showActionText("側拐弧圈", "#facc15");
+            } else {
+                ballSpeedZ = -BASE_SPEED * 1.85; ballSpeedY = 0.16; ballSpeedX = (ball.position.x - p1.position.x) * 0.05;
+                ball.userData.spin.set(0, 0, -0.02);
+            }
             ballState = 'p1_hit';
         }
 
         if (ballState === 'p2_must_hit' && ball.position.distanceTo(p2.position) < 2.5 && ballSpeedZ < 0) {
-            ballSpeedZ = BASE_SPEED * 1.85; ballSpeedY = 0.16;
-            ballSpeedX = (ball.position.x - p2.position.x) * 0.05;
+            let intent = 'normal';
+            if (gameMode === 'offline') {
+                if (Math.random() < 0.2) intent = 'smash'; else if (Math.random() < 0.2) intent = 'side';
+            } else {
+                if (!guestActive) intent = 'drop'; 
+                else if (p2VelocityZ > 0.1) intent = 'smash'; 
+                else if (Math.abs(p2VelocityX) > 0.1 && Math.abs(p2VelocityX) > Math.abs(p2VelocityZ)) intent = 'side';
+            }
+
+            if (intent === 'drop') {
+                // 🎯 修正 Bug 2：智慧導航，動態計算剛好過網的距離 (對面網後是 +1.5)
+                ballSpeedZ = (1.5 - ball.position.z) / 80; 
+                ballSpeedY = 0.22; ballSpeedX = (0 - ball.position.x) * 0.015;
+                ball.userData.spin.set(0, 0, -0.08); ball.material.color.setHex(0x38bdf8);
+                showActionText("卸力擺短", "#38bdf8");
+            } else if (intent === 'smash') {
+                ballSpeedZ = BASE_SPEED * 3.5; ballSpeedY = 0.06; ballSpeedX = (ball.position.x - p2.position.x) * 0.08;
+                ball.userData.spin.set(0, 0, 0.05); ball.material.color.setHex(0xf87171);
+                hitStopFrames = 6; 
+                showActionText("爆衝殺球!!", "#f87171");
+            } else if (intent === 'side') {
+                ballSpeedZ = BASE_SPEED * 1.6; ballSpeedY = 0.16; ballSpeedX = p2VelocityX * 0.8;
+                ball.userData.spin.set(p2VelocityX * 0.3, 0, 0.05); ball.material.color.setHex(0xfacc15);
+                showActionText("側拐弧圈", "#facc15");
+            } else {
+                ballSpeedZ = BASE_SPEED * 1.85; ballSpeedY = 0.16; ballSpeedX = (ball.position.x - p2.position.x) * 0.05;
+                ball.userData.spin.set(0, 0, 0.02);
+            }
             ballState = 'p2_hit';
         }
     }
-
     // ==================== 搖桿控制邏輯 ====================
     const joyZone = document.getElementById('joystick-zone');
     const joyKnob = document.getElementById('joystick-knob');
@@ -362,29 +440,20 @@
             if ((gameMode === 'host' || gameMode === 'offline') && server === 1) {
                 gameState = 'play'; ballState = 'p1_serve_hit'; document.getElementById('message').style.display = 'none';
                 ballSpeedZ = -BASE_SPEED * 1.7; ballSpeedX = (Math.random() - 0.5) * 0.03; ballSpeedY = -0.14; ball.userData.spin.set(0, 0, 0.06);
-            } else if (gameMode === 'guest' && server === 2) {
-                conn.send({ type: 'guest_serve' });
-            }
+            } else if (gameMode === 'guest' && server === 2) { conn.send({ type: 'guest_serve' }); }
         }
 
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         const rect = joyZone.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        
-        let dx = clientX - centerX;
-        let dy = clientY - centerY;
+        let dx = clientX - (rect.left + rect.width / 2);
+        let dy = clientY - (rect.top + rect.height / 2);
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        if (distance > maxJoyRadius) {
-            dx = (dx / distance) * maxJoyRadius;
-            dy = (dy / distance) * maxJoyRadius;
-        }
+        if (distance > maxJoyRadius) { dx = (dx / distance) * maxJoyRadius; dy = (dy / distance) * maxJoyRadius; }
         
         joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-        stickPos.x = dx / maxJoyRadius;
-        stickPos.y = dy / maxJoyRadius;
+        stickPos.x = dx / maxJoyRadius; stickPos.y = dy / maxJoyRadius;
     }
 
     joyZone.addEventListener('mousedown', (e) => { stickActive = true; joyKnob.style.background = 'rgba(255,255,255,0.6)'; handleJoyEvent(e); });
@@ -392,56 +461,63 @@
     window.addEventListener('mousemove', handleJoyEvent);
     window.addEventListener('touchmove', handleJoyEvent, {passive: false});
     
-    function endJoy() { 
-        stickActive = false; stickPos = {x:0, y:0}; 
-        joyKnob.style.transform = `translate(-50%, -50%)`; 
-        joyKnob.style.background = 'rgba(255,255,255,0.3)';
-    }
-    window.addEventListener('mouseup', endJoy);
-    window.addEventListener('touchend', endJoy);
+    function endJoy() { stickActive = false; stickPos = {x:0, y:0}; joyKnob.style.transform = `translate(-50%, -50%)`; joyKnob.style.background = 'rgba(255,255,255,0.3)'; }
+    window.addEventListener('mouseup', endJoy); window.addEventListener('touchend', endJoy);
 
     // ==================== 主循環 ====================
     function animate() {
         requestAnimationFrame(animate);
 
-        // ===== 絕對座標映射 (Absolute Mapping) =====
         if (stickActive) {
             if (gameMode === 'guest') {
-                let targetX = -stickPos.x * 8;
-                let targetZ = -5.25 - (stickPos.y * 4.75); 
-                
-                p2.position.x += (targetX - p2.position.x) * 0.25;
-                p2.position.z += (targetZ - p2.position.z) * 0.25;
-                
-                p2.position.x = Math.max(Math.min(p2.position.x, 8), -8);
-                p2.position.z = Math.max(Math.min(p2.position.z, -0.5), -10);
-                if(conn) conn.send({ type: 'guest_pos', x: p2.position.x, z: p2.position.z });
+                p2.position.x += ((-stickPos.x * 8) - p2.position.x) * 0.25;
+                p2.position.z += ((-5.25 - (stickPos.y * 4.75)) - p2.position.z) * 0.25;
+                p2.position.x = Math.max(Math.min(p2.position.x, 8), -8); p2.position.z = Math.max(Math.min(p2.position.z, -0.5), -10);
+                if(conn) conn.send({ type: 'guest_pos', x: p2.position.x, z: p2.position.z, a: stickActive });
             } else {
-                let targetX = stickPos.x * 8;
-                let targetZ = 5.25 + (stickPos.y * 4.75);
-                
-                p1.position.x += (targetX - p1.position.x) * 0.25;
-                p1.position.z += (targetZ - p1.position.z) * 0.25;
-                
-                p1.position.x = Math.max(Math.min(p1.position.x, 8), -8);
-                p1.position.z = Math.max(Math.min(p1.position.z, 10), 0.5);
+                p1.position.x += ((stickPos.x * 8) - p1.position.x) * 0.25;
+                p1.position.z += ((5.25 + (stickPos.y * 4.75)) - p1.position.z) * 0.25;
+                p1.position.x = Math.max(Math.min(p1.position.x, 8), -8); p1.position.z = Math.max(Math.min(p1.position.z, 10), 0.5);
             }
+        } else {
+            if (gameMode === 'guest' && conn) conn.send({ type: 'guest_pos', x: p2.position.x, z: p2.position.z, a: false });
         }
 
         if (gameMode !== 'guest') { 
             p1VelocityX = p1.position.x - p1LastX; p1LastX = p1.position.x;
-            if (gameState === 'serve' && server === 1) ball.position.set(p1.position.x, p1.position.y + 0.6, p1.position.z - 1.2);
-            if (gameState === 'play') {
-                ball.position.x += ballSpeedX; ball.position.y += ballSpeedY; ball.position.z += ballSpeedZ;
-                ballSpeedY -= GRAVITY;
-                checkCollisions();
-                if (gameMode === 'offline') {
-                    p2.position.x += (ball.position.x - p2.position.x) * 0.092;
-                    p2.position.z = -7 + (ball.position.z < -1 ? (ball.position.z + 7) * 0.25 : 0);
+            p1VelocityZ = p1.position.z - p1LastZ; p1LastZ = p1.position.z;
+            p2VelocityX = p2.position.x - p2LastX; p2LastX = p2.position.x;
+            p2VelocityZ = p2.position.z - p2LastZ; p2LastZ = p2.position.z;
+
+            if (hitStopFrames > 0) {
+                hitStopFrames--;
+            } else {
+                if (gameState === 'serve' && server === 1) ball.position.set(p1.position.x, p1.position.y + 0.6, p1.position.z - 1.2);
+                if (gameState === 'play') {
+                    ball.position.x += ballSpeedX; ball.position.y += ballSpeedY; ball.position.z += ballSpeedZ;
+                    ballSpeedY -= GRAVITY;
+                    
+                    ball.userData.spin.multiplyScalar(0.985);
+                    ballSpeedX += ball.userData.spin.x * 0.015;  
+                    
+                    ball.rotation.x += ball.userData.spin.z * 1.8;
+                    ball.rotation.y += ball.userData.spin.x * 1.2;
+
+                    checkCollisions();
+                    
+                    if (gameMode === 'offline') {
+                        p2.position.x += (ball.position.x - p2.position.x) * 0.092;
+                        p2.position.z = -7 + (ball.position.z < -1 ? (ball.position.z + 7) * 0.25 : 0);
+                    }
                 }
             }
             if (gameMode === 'host' && conn) {
-                conn.send({ type: 'sync', bx: ball.position.x, by: ball.position.y, bz: ball.position.z, p1x: p1.position.x, p1z: p1.position.z, s1: scoreP1, s2: scoreP2, msg: currentMsg, msgDur: 1600 });
+                conn.send({ 
+                    type: 'sync', bx: ball.position.x, by: ball.position.y, bz: ball.position.z, 
+                    p1x: p1.position.x, p1z: p1.position.z, s1: scoreP1, s2: scoreP2, 
+                    msg: currentMsg, msgDur: 1600, c: ball.material.color.getHex(),
+                    actionStr: currentActionStr, actionColor: currentActionColor
+                });
             }
         }
         renderer.render(scene, camera);
