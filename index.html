@@ -362,20 +362,33 @@
     // ==================== 主循環 ====================
     function animate() {
         requestAnimationFrame(animate);
-        
-        // 搖桿轉換為球拍位移 (Velocity Mapping)
-        const paddleSpeed = 0.55; 
-        if (gameMode === 'guest') {
-            p2.position.x += -stickPos.x * paddleSpeed; 
-            p2.position.z += stickPos.y * paddleSpeed; 
-            p2.position.x = Math.max(Math.min(p2.position.x, 8), -8);
-            p2.position.z = Math.max(Math.min(p2.position.z, -0.5), -10);
-            if(conn && stickActive) conn.send({ type: 'guest_pos', x: p2.position.x, z: p2.position.z });
-        } else {
-            p1.position.x += stickPos.x * paddleSpeed;
-            p1.position.z += stickPos.y * paddleSpeed;
-            p1.position.x = Math.max(Math.min(p1.position.x, 8), -8);
-            p1.position.z = Math.max(Math.min(p1.position.z, 10), 0.5);
+
+        // ===== 全新：絕對座標映射 (Absolute Mapping) =====
+        // 搖桿就像半場的縮小版地圖，指哪打哪，放開就不動
+        if (stickActive) {
+            if (gameMode === 'guest') {
+                // 訪客映射 (視角反轉)
+                let targetX = -stickPos.x * 8;
+                let targetZ = -5.25 - (stickPos.y * 4.75); 
+                
+                // 0.25 是平滑度(Lerp)，數值越大越跟手，越小越平滑
+                p2.position.x += (targetX - p2.position.x) * 0.25;
+                p2.position.z += (targetZ - p2.position.z) * 0.25;
+                
+                p2.position.x = Math.max(Math.min(p2.position.x, 8), -8);
+                p2.position.z = Math.max(Math.min(p2.position.z, -0.5), -10);
+                if(conn) conn.send({ type: 'guest_pos', x: p2.position.x, z: p2.position.z });
+            } else {
+                // 桌主映射
+                let targetX = stickPos.x * 8;
+                let targetZ = 5.25 + (stickPos.y * 4.75);
+                
+                p1.position.x += (targetX - p1.position.x) * 0.25;
+                p1.position.z += (targetZ - p1.position.z) * 0.25;
+                
+                p1.position.x = Math.max(Math.min(p1.position.x, 8), -8);
+                p1.position.z = Math.max(Math.min(p1.position.z, 10), 0.5);
+            }
         }
 
         if (gameMode !== 'guest') { 
