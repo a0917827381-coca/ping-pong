@@ -239,11 +239,30 @@
         if (duration < 99999) setTimeout(() => { msg.style.display = 'none'; currentMsg = ''; }, duration);
     }
 
+    // ===== 新增：檢查勝利條件 =====
+    function checkWinCondition() {
+        if (scoreP1 >= WIN_SCORE || scoreP2 >= WIN_SCORE) {
+            gameState = 'gameover'; // 切換狀態機，讓物理引擎停止發球
+            const winnerName = scoreP1 >= WIN_SCORE ? '紅拍' : '藍拍';
+            const winnerColor = scoreP1 >= WIN_SCORE ? '#f87171' : '#60a5fa';
+            showMessage(`
+                <span style="font-size:32px; color:${winnerColor};">${winnerName} 獲勝！</span><br>
+                最終比數 ${scoreP1} : ${scoreP2}<br>
+                <span style="color:#94a3b8; font-size:16px; display:inline-block; margin-top:10px;">重新整理網頁開啟新局</span>
+            `, 999999);
+            return true;
+        }
+        return false;
+    }
+
     function resetPoint(winner, reason = "") {
         if(gameMode === 'guest') return; 
         gameState = 'wait';
         if (winner === 1) scoreP1++; else if (winner === 2) scoreP2++;
         updateScore();
+
+        // 新增：計分後立刻檢查是否有人達到 21 分，若有則直接 return 終止這回合的發球程序
+        if (winner !== 0 && checkWinCondition()) return;
 
         server = (Math.floor((scoreP1 + scoreP2) / 2) % 2 === 0) ? 1 : 2;
         ballSpeedX = ballSpeedY = ballSpeedZ = 0; ball.userData.spin.set(0,0,0);
@@ -256,6 +275,7 @@
         }
 
         setTimeout(() => {
+            if (gameState === 'gameover') return; // 防呆：如果遊戲結束就不再呼叫發球
             gameState = 'serve';
             if (server === 1) showMessage(`紅拍發球`, 999999);
             else {
